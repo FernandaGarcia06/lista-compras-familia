@@ -353,6 +353,7 @@ function App() {
   const [compararPrecos, setCompararPrecos] = useState(false);
   const [erroFormulario, setErroFormulario] = useState("");
   const [salvandoProduto, setSalvandoProduto] = useState(false);
+  const [tentouSalvar, setTentouSalvar] = useState(false);
   const [produtoParaExcluir, setProdutoParaExcluir] = useState(null);
 
   // Seleção múltipla
@@ -816,6 +817,7 @@ function App() {
     setNovoProduto(PRODUTO_VAZIO);
     setCompararPrecos(false);
     setErroFormulario("");
+    setTentouSalvar(false);
     setIdProdutoEditando(null);
     setIdProdutoAberto(null);
     setMostrarFormulario(true);
@@ -835,6 +837,7 @@ function App() {
       })),
     });
     setErroFormulario("");
+    setTentouSalvar(false);
     setIdProdutoEditando(produto.id);
     setMostrarFormulario(true);
   }
@@ -844,6 +847,7 @@ function App() {
     setIdProdutoEditando(null);
     setIdProdutoAberto(null);
     setErroFormulario("");
+    setTentouSalvar(false);
   }
 
   function montarDadosProduto() {
@@ -856,6 +860,14 @@ function App() {
     }
     if (estaNaListaAtual(nome, idProdutoEditando)) {
       return { erro: "Esse produto já está na lista." };
+    }
+
+    // Mercado "Outro" sem nome: o nome é obrigatório
+    if (
+      compararPrecos &&
+      novoProduto.mercados.some((m) => m.outro && !(m.local || "").trim())
+    ) {
+      return { erroNomeMercado: true };
     }
 
     const mercados = compararPrecos
@@ -902,7 +914,19 @@ function App() {
     e.preventDefault();
     if (!listaId) return setErroFormulario("Sua lista ainda está sendo preparada.");
 
-    const { erro, dados } = montarDadosProduto();
+    const { erro, erroNomeMercado, dados } = montarDadosProduto();
+
+    // Mercado "Outro" sem nome: o aviso aparece só no campo, sem mensagem geral
+    if (erroNomeMercado) {
+      setErroFormulario("");
+      setTentouSalvar(true);
+      const indice = novoProduto.mercados.findIndex(
+        (m) => m.outro && !(m.local || "").trim()
+      );
+      setTimeout(() => document.getElementById(`nome-mercado-${indice}`)?.focus(), 0);
+      return;
+    }
+
     if (erro) return setErroFormulario(erro);
 
     try {
@@ -1200,13 +1224,31 @@ function App() {
     if (existeNoCatalogo(nome, itemEditandoCatalogo)) {
       return setErroCatalogo("Esse produto já está no catálogo.");
     }
+
+    // Produtos da lista atual que têm o nome antigo e serão renomeados junto
+    const produtosParaRenomear = listaId
+      ? produtos.filter((p) => mesmoNome(p.nome, itemEditandoCatalogo))
+      : [];
+    const nomeJaUsadoNaLista = produtos.some(
+      (p) => !mesmoNome(p.nome, itemEditandoCatalogo) && mesmoNome(p.nome, nome)
+    );
+    if (produtosParaRenomear.length > 0 && nomeJaUsadoNaLista) {
+      return setErroCatalogo("Já existe um produto com esse nome na lista.");
+    }
+
     try {
       setErroCatalogo("");
-      await setDoc(
+      // Renomeia no catálogo e na lista juntos ("tudo ou nada")
+      const lote = writeBatch(db);
+      lote.set(
         doc(db, "usuarios", usuario.uid),
         { catalogo: catalogo.map((item) => (item === itemEditandoCatalogo ? nome : item)) },
         { merge: true }
       );
+      produtosParaRenomear.forEach((p) =>
+        lote.update(doc(db, "listas", listaId, "produtos", p.id), { nome })
+      );
+      await lote.commit();
       setSelecionadosCatalogo((atual) =>
         atual.map((item) => (item === itemEditandoCatalogo ? nome : item))
       );
@@ -1564,7 +1606,7 @@ function App() {
                 <div>
                   <span>Progresso da compra</span>
                   <strong>
-                    {produtosComprados} de {produtos.length} pegos
+                    {produtosComprados} de {produtos.length}
                   </strong>
                 </div>
                 <div className="porcentagem">{Math.round(progresso)}%</div>
@@ -2295,6 +2337,11 @@ function App() {
                     temPreco(mercado.preco) && Number(novoProduto.quantidade) > 0
                       ? Number(mercado.preco) * Number(novoProduto.quantidade)
                       : null;
+                  // "Outro" escolhido com nome em branco (e preço digitado ou já tentou salvar)
+                  const nomeOutroFaltando =
+                    mercado.outro &&
+                    !(mercado.local || "").trim() &&
+                    (temPreco(mercado.preco) || tentouSalvar);
                   return (
                     <div className="linha-mercado" key={index}>
                       <div>
@@ -2328,11 +2375,21 @@ function App() {
                         <div className="campo-mercado-outro">
                           <label>Nome do mercado</label>
                           <input
+                            id={`nome-mercado-${index}`}
                             type="text"
                             placeholder="Ex: Mercado do bairro"
                             value={mercado.local}
                             onChange={(e) => alterarCampoMercado(index, "local", e.target.value)}
+                            aria-invalid={nomeOutroFaltando}
+                            aria-describedby={
+                              nomeOutroFaltando ? `erro-nome-mercado-${index}` : undefined
+                            }
                           />
+                          {nomeOutroFaltando && (
+                            <p className="erro-campo" id={`erro-nome-mercado-${index}`} role="alert">
+                              Por favor, preencha o nome.
+                            </p>
+                          )}
                         </div>
                       )}
                       {novoProduto.mercados.length > 1 && (

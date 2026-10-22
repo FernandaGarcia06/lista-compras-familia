@@ -1479,6 +1479,23 @@ input[type="checkbox"] {
   grid-column: 1 / -1;
 }
 
+/* Mensagem de erro logo abaixo de um campo */
+.erro-campo {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vermelho);
+}
+
+.modal input[aria-invalid="true"] {
+  border-color: var(--vermelho);
+}
+
+.modal input[aria-invalid="true"]:focus {
+  border-color: var(--vermelho);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+}
+
 .preview-total-mercado {
   display: flex;
   justify-content: space-between;
