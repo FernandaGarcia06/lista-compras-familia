@@ -188,8 +188,8 @@ function ComparacaoMercados({ produto }) {
     ? Math.min(...mercadosComPreco.map((m) => Number(m.preco)))
     : 0;
   const unidade = abreviarUnidade(produto.unidade);
-  // Com quantidade 1 o preço unitário é igual ao total, então não repete
-  const mostrarUnitario = Number(produto.quantidade) !== 1;
+  // Com quantidade 1 o total é igual ao preço unitário, então não repete
+  const mostrarTotal = Number(produto.quantidade) !== 1;
 
   // Do mais barato ao mais caro; mercados sem preço no fim
   const mercados = obterMercados(produto)
@@ -219,10 +219,12 @@ function ComparacaoMercados({ produto }) {
             </span>
             {comPreco && (
               <span className="comparacao-precos">
-                <strong>{formatarPreco(Number(m.preco) * Number(produto.quantidade))}</strong>
-                {mostrarUnitario && (
+                <strong>
+                  {formatarPreco(m.preco)}/{unidade}
+                </strong>
+                {mostrarTotal && (
                   <small>
-                    {formatarPreco(m.preco)}/{unidade}
+                    Total {formatarPreco(Number(m.preco) * Number(produto.quantidade))}
                   </small>
                 )}
               </span>
@@ -298,8 +300,8 @@ function TabelaMercados({ produto }) {
     <div className="tabela-mercados">
       <div className="tabela-linha tabela-cabecalho">
         <span>Mercado</span>
-        <span>Total</span>
         <span>Unitário</span>
+        <span>Total</span>
       </div>
       {mercados.map((m, i) => {
         const comPreco = temPreco(m.preco);
@@ -312,9 +314,11 @@ function TabelaMercados({ produto }) {
               {maisBarato && <em className="selo-barato">mais barato</em>}
             </span>
             <strong className={maisBarato ? "preco-verde" : ""}>
-              {comPreco ? formatarPreco(Number(m.preco) * Number(produto.quantidade)) : "—"}
+              {comPreco ? formatarPreco(m.preco) : "—"}
             </strong>
-            <span className="tabela-unitario">{comPreco ? formatarPreco(m.preco) : "—"}</span>
+            <span className="tabela-unitario">
+              {comPreco ? formatarPreco(Number(m.preco) * Number(produto.quantidade)) : "—"}
+            </span>
           </div>
         );
       })}
